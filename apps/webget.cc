@@ -6,19 +6,27 @@
 
 using namespace std;
 
+constexpr size_t kBufferSize = 1024;
+
 void get_URL(const string &host, const string &path) {
-    // Your code here.
+    std::cerr << "Function called: get_URL(" << host << ", " << path << ").\n";
 
-    // You will need to connect to the "http" service on
-    // the computer whose name is in the "host" string,
-    // then request the URL path given in the "path" string.
+    TCPSocket tcp_sock;
+    Address addr(host, "http");
+    tcp_sock.connect(addr);
 
-    // Then you'll need to print out everything the server sends back,
-    // (not just one call to read() -- everything) until you reach
-    // the "eof" (end of file).
+    char req_str[kBufferSize];
+    snprintf(req_str, sizeof(req_str),
+             "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", path.c_str(), host.c_str());
+    tcp_sock.write(req_str);
 
-    cerr << "Function called: get_URL(" << host << ", " << path << ").\n";
-    cerr << "Warning: get_URL() has not been implemented yet.\n";
+    std::string resp;
+    while (!tcp_sock.eof()) {
+        resp.append(tcp_sock.read());
+    }
+    tcp_sock.close();
+
+    std::cout << resp;
 }
 
 int main(int argc, char *argv[]) {

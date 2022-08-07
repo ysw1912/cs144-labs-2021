@@ -1,6 +1,7 @@
 #ifndef SPONGE_LIBSPONGE_BYTE_STREAM_HH
 #define SPONGE_LIBSPONGE_BYTE_STREAM_HH
 
+#include <vector>
 #include <string>
 
 //! \brief An in-order byte stream.
@@ -10,18 +11,17 @@
 //! and then no more bytes can be written.
 class ByteStream {
   private:
-    // Your code here -- add private members as necessary.
-
-    // Hint: This doesn't need to be a sophisticated data structure at
-    // all, but if any of your tests are taking longer than a second,
-    // that's a sign that you probably want to keep exploring
-    // different approaches.
-
-    bool _error{};  //!< Flag indicating that the stream suffered an error.
+    std::vector<char> buffer_;  //!< Cycle buffer.
+    size_t used_size_ = 0;      //!< Used size of buffer.
+    size_t start_pos_ = 0;      //!< Start position for read, then end position is |start_pos_| + |used_size_|.
+    size_t bytes_read_ = 0;     //!< Stats for account total read.
+    size_t bytes_written_ = 0;  //!< Stats for account total written.
+    bool input_ended_ = false;  //!< Flag indicating that the stream has reached its ending.
+    bool _error = false;        //!< Flag indicating that the stream suffered an error.
 
   public:
     //! Construct a stream with room for `capacity` bytes.
-    ByteStream(const size_t capacity);
+    explicit ByteStream(const size_t capacity);
 
     //! \name "Input" interface for the writer
     //!@{
@@ -80,6 +80,9 @@ class ByteStream {
     //! Total number of bytes popped
     size_t bytes_read() const;
     //!@}
+
+  private:
+    inline size_t end_pos() const;
 };
 
 #endif  // SPONGE_LIBSPONGE_BYTE_STREAM_HH
