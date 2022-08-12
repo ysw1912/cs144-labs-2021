@@ -5,21 +5,48 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
+
+class UnAssembleBuffer {
+  private:
+    struct Item {
+        char ch = 0;
+        bool used = false;
+    };
+    std::vector<Item> buffer_;  //!< Cycle buffer.
+    size_t used_size_ = 0;      //!< Used size of buffer.
+    size_t start_pos_ = 0;
+    size_t end_pos_ = 0;
+
+  public:
+    explicit UnAssembleBuffer(size_t capacity);
+
+    //! \brief Push a substring into the buffer.
+    //!
+    //! \param data the substring view.
+    //! \param index indicates the index (place in sequence) of the first byte in `data`.
+    //! \param start_index indicates the index (place in sequence) of the start position.
+    std::string push_substring(std::string_view data, size_t index, size_t start_index);
+
+    bool empty() const;
+
+    size_t used_size() const { return used_size_; }
+};
 
 //! \brief A class that assembles a series of excerpts from a byte stream (possibly out of order,
 //! possibly overlapping) into an in-order byte stream.
 class StreamReassembler {
   private:
-    // Your code here -- add private members as necessary.
-
-    ByteStream _output;  //!< The reassembled in-order byte stream
-    size_t _capacity;    //!< The maximum number of bytes
+    UnAssembleBuffer buffer_;  //!< Buffer storing unassembled substrings.
+    ByteStream output_;         //!< The reassembled in-order byte stream.
+    size_t capacity_;
+    size_t eof_index_ = -1;
 
   public:
     //! \brief Construct a `StreamReassembler` that will store up to `capacity` bytes.
     //! \note This capacity limits both the bytes that have been reassembled,
     //! and those that have not yet been reassembled.
-    StreamReassembler(const size_t capacity);
+    explicit StreamReassembler(const size_t capacity);
 
     //! \brief Receive a substring and write any newly contiguous bytes into the stream.
     //!
@@ -29,12 +56,12 @@ class StreamReassembler {
     //! \param data the substring
     //! \param index indicates the index (place in sequence) of the first byte in `data`
     //! \param eof the last byte of `data` will be the last byte in the entire stream
-    void push_substring(const std::string &data, const uint64_t index, const bool eof);
+    void push_substring(const std::string &data, size_t index, const bool eof);
 
     //! \name Access the reassembled byte stream
     //!@{
-    const ByteStream &stream_out() const { return _output; }
-    ByteStream &stream_out() { return _output; }
+    const ByteStream &stream_out() const { return output_; }
+    ByteStream &stream_out() { return output_; }
     //!@}
 
     //! The number of bytes in the substrings stored but not yet reassembled

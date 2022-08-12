@@ -19,6 +19,7 @@ void get_URL(const string &host, const string &path) {
     snprintf(req_str, sizeof(req_str),
              "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", path.c_str(), host.c_str());
     tcp_sock.write(req_str);
+    tcp_sock.shutdown(SHUT_WR);
 
     std::string resp;
     while (!tcp_sock.eof()) {
