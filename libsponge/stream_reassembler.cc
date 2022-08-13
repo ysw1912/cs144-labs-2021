@@ -63,7 +63,7 @@ void StreamReassembler::push_substring(const std::string& data, size_t index, co
     //       |       |
     //     index  bytes_written
     //
-    // If index = 3, bytes_written = 7, sv.size() = 8, we can only keep the last 4 x.
+    // If index = 3, bytes_written = 7, sv.size() = 8, we just need to push the last 4.
     if (index < bytes_written) {
         if (bytes_written - index > sv.size()) {
             // All the |data| has been written.
@@ -72,34 +72,31 @@ void StreamReassembler::push_substring(const std::string& data, size_t index, co
         sv.remove_prefix(bytes_written - index);
         index = bytes_written;
     }
+    assert(index >= bytes_written);
 
     //          |<--capacity--->|
     // - - - - - 0 0 0 0 0 0 x x x x
     //           |           |
     //     bytes_written    index
     //
-    // If capacity = 8, sv.size() = 4, we can only keep the first 2 x.
+    // If capacity = 8, sv.size() = 4, we can only push the first 2.
     size_t max_len = capacity_ - (index - bytes_written);
     if (sv.size() > max_len) {
         sv = sv.substr(0, max_len);
     }
 
-    // Check empty.
-    if (sv.empty()) {
-        if (eof) {
-            output_.end_input();
-        }
-        return;
-    }
-
+    // Set |eof_index_|.
     if (eof) {
         eof_index_ = index + sv.size();
     }
-    std::string popped = buffer_.push_substring(sv, index, bytes_written);
-    if (popped.empty()) {
-        return;
+
+    if (!sv.empty()) {
+        std::string popped = buffer_.push_substring(sv, index, bytes_written);
+        if (!popped.empty()) {
+            output_.write(popped);
+        }
     }
-    output_.write(popped);
+
     if (output_.bytes_written() == eof_index_) {
         output_.end_input();
     }
