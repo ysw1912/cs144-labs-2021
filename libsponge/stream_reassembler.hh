@@ -7,6 +7,8 @@
 #include <string>
 #include <string_view>
 
+static_assert(sizeof(size_t) == sizeof(uint64_t));
+
 class UnAssembleBuffer {
   private:
     struct Item {
@@ -16,7 +18,6 @@ class UnAssembleBuffer {
     std::vector<Item> buffer_;  //!< Cycle buffer.
     size_t used_size_ = 0;      //!< Used size of buffer.
     size_t start_pos_ = 0;
-    size_t end_pos_ = 0;
 
   public:
     explicit UnAssembleBuffer(size_t capacity);
@@ -37,10 +38,10 @@ class UnAssembleBuffer {
 //! possibly overlapping) into an in-order byte stream.
 class StreamReassembler {
   private:
-    UnAssembleBuffer buffer_;  //!< Buffer storing unassembled substrings.
+    UnAssembleBuffer buffer_;   //!< Buffer storing unassembled substrings.
     ByteStream output_;         //!< The reassembled in-order byte stream.
     size_t capacity_;
-    size_t eof_index_ = -1;
+    uint64_t eof_index_ = -1;
 
   public:
     //! \brief Construct a `StreamReassembler` that will store up to `capacity` bytes.
@@ -56,7 +57,7 @@ class StreamReassembler {
     //! \param data the substring
     //! \param index indicates the index (place in sequence) of the first byte in `data`
     //! \param eof the last byte of `data` will be the last byte in the entire stream
-    void push_substring(const std::string &data, size_t index, const bool eof);
+    void push_substring(const std::string &data, uint64_t index, const bool eof);
 
     //! \name Access the reassembled byte stream
     //!@{
