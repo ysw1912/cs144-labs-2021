@@ -15,17 +15,29 @@
 //! remote TCPSender.
 class TCPReceiver {
     //! Our data structure for re-assembling bytes.
-    StreamReassembler _reassembler;
+    StreamReassembler reassembler_;
 
     //! The maximum number of bytes we'll store.
-    size_t _capacity;
+    size_t capacity_;
+
+    //! Initial sequence number.
+    std::optional<WrappingInt32> isn_ = std::nullopt;
+
+    //! The ack no that should be sent to the peer.
+    std::optional<WrappingInt32> ack_no_ = std::nullopt;
+
+    // The index of the last reassembled byte.
+    uint64_t checkpoint_ = 0;
+
+  private:
+    bool syn_recv() const { return isn_.has_value(); }
 
   public:
     //! \brief Construct a TCP receiver
     //!
     //! \param capacity the maximum number of bytes that the receiver will
     //!                 store in its buffers at any give time.
-    TCPReceiver(const size_t capacity) : _reassembler(capacity), _capacity(capacity) {}
+    explicit TCPReceiver(const size_t capacity) : reassembler_(capacity), capacity_(capacity) {}
 
     //! \name Accessors to provide feedback to the remote TCPSender
     //!@{
@@ -51,15 +63,15 @@ class TCPReceiver {
     //!@}
 
     //! \brief number of bytes stored but not yet reassembled
-    size_t unassembled_bytes() const { return _reassembler.unassembled_bytes(); }
+    size_t unassembled_bytes() const { return reassembler_.unassembled_bytes(); }
 
     //! \brief handle an inbound segment
     void segment_received(const TCPSegment &seg);
 
     //! \name "Output" interface for the reader
     //!@{
-    ByteStream &stream_out() { return _reassembler.stream_out(); }
-    const ByteStream &stream_out() const { return _reassembler.stream_out(); }
+    ByteStream &stream_out() { return reassembler_.stream_out(); }
+    const ByteStream &stream_out() const { return reassembler_.stream_out(); }
     //!@}
 };
 
