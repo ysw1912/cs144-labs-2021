@@ -3,19 +3,12 @@
 #include <cassert>
 #include <cstring>
 
-// Dummy implementation of a flow-controlled in-memory byte stream.
-
-// For Lab 0, please replace with a real implementation that passes the
-// automated checks run by `make check_lab0`.
-
-// You will need to add private members to the class declaration in `byte_stream.hh`
-
-using namespace std;
+#include <string>
 
 ByteStream::ByteStream(const size_t capacity)
     : buffer_(capacity, 0) {}
 
-size_t ByteStream::write(const string &data) {
+size_t ByteStream::write(const std::string &data) {
     size_t write_size = std::min(data.size(), remaining_capacity());
     if (write_size == 0) {
         return 0;
@@ -35,7 +28,7 @@ size_t ByteStream::write(const string &data) {
 }
 
 //! \param[in] len bytes will be copied from the output side of the buffer
-string ByteStream::peek_output(const size_t len) const {
+std::string ByteStream::peek_output(const size_t len) const {
     size_t read_size = std::min(len, used_size_);
     std::string ret;
     ret.resize(read_size);
