@@ -77,14 +77,15 @@ TCPState::TCPState(const TCPSender &sender, const TCPReceiver &receiver, const b
     : _sender(state_summary(sender))
     , _receiver(state_summary(receiver))
     , _active(active)
-    , _linger_after_streams_finish(active ? linger : false) {}
+    , _linger_after_streams_finish(active && linger) {}
 
 string TCPState::state_summary(const TCPReceiver &receiver) {
-    if (receiver.stream_out().error()) {
+    TCPReceiver::State state = receiver.state();
+    if (state == TCPReceiver::State::kError) {
         return TCPReceiverStateSummary::ERROR;
-    } else if (not receiver.ackno().has_value()) {
+    } else if (state == TCPReceiver::State::kListen) {
         return TCPReceiverStateSummary::LISTEN;
-    } else if (receiver.stream_out().input_ended()) {
+    } else if (state == TCPReceiver::State::kFinRecv) {
         return TCPReceiverStateSummary::FIN_RECV;
     } else {
         return TCPReceiverStateSummary::SYN_RECV;
@@ -92,17 +93,16 @@ string TCPState::state_summary(const TCPReceiver &receiver) {
 }
 
 string TCPState::state_summary(const TCPSender &sender) {
-    if (sender.stream_in().error()) {
+    TCPSender::State state = sender.state();
+    if (state == TCPSender::State::kError) {
         return TCPSenderStateSummary::ERROR;
-    } else if (sender.next_seqno_absolute() == 0) {
+    } else if (state == TCPSender::State::kClosed) {
         return TCPSenderStateSummary::CLOSED;
-    } else if (sender.next_seqno_absolute() == sender.bytes_in_flight()) {
+    } else if (state == TCPSender::State::kSynSent) {
         return TCPSenderStateSummary::SYN_SENT;
-    } else if (not sender.stream_in().eof()) {
+    } else if (state == TCPSender::State::kSynAcked) {
         return TCPSenderStateSummary::SYN_ACKED;
-    } else if (sender.next_seqno_absolute() < sender.stream_in().bytes_written() + 2) {
-        return TCPSenderStateSummary::SYN_ACKED;
-    } else if (sender.bytes_in_flight()) {
+    } else if (state == TCPSender::State::kFinSent) {
         return TCPSenderStateSummary::FIN_SENT;
     } else {
         return TCPSenderStateSummary::FIN_ACKED;

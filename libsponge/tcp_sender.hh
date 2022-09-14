@@ -85,14 +85,18 @@ class TCPSender {
     uint64_t window_size_ = 1;
 
   private:
-    bool syn_sent() const { return next_seq_no_ > 0; }
-
-    bool fin_sent() const { return stream_.eof() && next_seq_no_ == stream_.bytes_written() + 2; }
-
-    //! Free space in the receive window.
-    uint64_t free_window_size() const;
 
     void send_segment(TCPSegment& seg);
+
+  public:
+    enum class State {
+        kError,
+        kClosed,
+        kSynSent,
+        kSynAcked,
+        kFinSent,
+        kFinAcked,
+    };
 
   public:
     //! Initialize a TCPSender
@@ -124,6 +128,11 @@ class TCPSender {
 
     //! \name Accessors
     //!@{
+
+    State state() const;
+
+    //! \brief Free space in the receive window.
+    uint64_t free_window_size() const;
 
     //! \brief How many sequence numbers are occupied by segments sent but not yet acknowledged?
     //! \note count is in "sequence space," i.e. SYN and FIN each count for one byte

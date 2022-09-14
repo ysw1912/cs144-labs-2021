@@ -23,14 +23,19 @@ class TCPReceiver {
     //! Initial sequence number.
     std::optional<WrappingInt32> isn_ = std::nullopt;
 
-    //! The ack no that should be sent to the peer.
-    std::optional<WrappingInt32> ack_no_ = std::nullopt;
-
-    // The index of the last reassembled byte.
-    uint64_t checkpoint_ = 0;
+    bool is_listen_ = true;
 
   private:
-    bool syn_recv() const { return isn_.has_value(); }
+    //! Absolute ack no as the checkpoint.
+    uint64_t abs_ack_no() const;
+
+  public:
+    enum class State {
+        kError,
+        kListen,
+        kSynRecv,
+        kFinRecv,
+    };
 
   public:
     //! \brief Construct a TCP receiver
@@ -41,6 +46,8 @@ class TCPReceiver {
 
     //! \name Accessors to provide feedback to the remote TCPSender
     //!@{
+
+    State state() const;
 
     //! \brief The ackno that should be sent to the peer
     //! \returns empty if no SYN has been received

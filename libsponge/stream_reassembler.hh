@@ -4,6 +4,7 @@
 #include "byte_stream.hh"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -11,11 +12,9 @@ static_assert(sizeof(size_t) == sizeof(uint64_t));
 
 class UnAssembleBuffer {
   private:
-    struct Item {
-        char ch = 0;
-        bool used = false;
-    };
-    std::vector<Item> buffer_;  //!< Cycle buffer.
+    std::vector<char> buffer_;  //!< Cycle buffer.
+    std::vector<char> used_;
+
     size_t used_size_ = 0;      //!< Used size of buffer.
     size_t start_pos_ = 0;
 
@@ -41,7 +40,7 @@ class StreamReassembler {
     UnAssembleBuffer buffer_;   //!< Buffer storing unassembled substrings.
     ByteStream output_;         //!< The reassembled in-order byte stream.
     size_t capacity_;
-    uint64_t eof_index_ = -1;
+    std::optional<uint64_t> eof_index_{};
 
   public:
     //! \brief Construct a `StreamReassembler` that will store up to `capacity` bytes.

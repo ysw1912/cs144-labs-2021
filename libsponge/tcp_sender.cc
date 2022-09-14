@@ -42,9 +42,9 @@ uint64_t TCPSender::free_window_size() const {
 }
 
 void TCPSender::fill_window() {
-    // SYN_SENT case.
     // Initially the window size is 1, so only SYN flag can be sent.
-    if (!syn_sent()) {
+    // CLOSE => SYN_SENT.
+    if (state() == State::kClosed) {
         TCPSegment seg;
         seg.header().syn = true;
         seg.header().seqno = isn_;
@@ -59,7 +59,7 @@ void TCPSender::fill_window() {
             return;
         }
         size_t stream_size = stream_.buffer_size();
-        bool need_send_fin = stream_.input_ended() && !fin_sent();
+        bool need_send_fin = stream_.input_ended() && state() == State::kSynAcked;
         if (stream_size == 0 && !need_send_fin) {
             return;
         }
@@ -67,8 +67,9 @@ void TCPSender::fill_window() {
         TCPSegment seg;
         seg.header().seqno = wrap(next_seq_no_, isn_);
         seg.payload() = stream_.read(send_size);
-        // FIN_SENT case.
-        if (free_window > send_size && need_send_fin) {
+        // Only when the |stream_| is ended after being read, could we sent FIN.
+        // SYN_ACKED => FIN_SENT.
+        if (stream_.eof() && free_window > send_size && need_send_fin) {
             seg.header().fin = true;
         }
         send_segment(seg);
@@ -78,16 +79,13 @@ void TCPSender::fill_window() {
 //! \param ackno The remote receiver's ackno (acknowledgment number)
 //! \param window_size The remote receiver's advertised window size
 void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
-    if (!syn_sent()) {
-        return;
-    }
-    uint64_t abs_ack_no = unwrap(ackno, isn_, last_ack_no_);
+    size_t abs_ack_no = unwrap(ackno, isn_, last_ack_no_);
     // Ignore old / repeated ACKs and impossible ACKs (beyond next seq no).
     // Timer also does not restart without ACK of new data.
     if (abs_ack_no <= last_ack_no_ || abs_ack_no > next_seq_no_) {
         // Repeated ACKs as last time need to update the window size.
         if (abs_ack_no == last_ack_no_) {
-            window_size_ = window_size;
+            window_size_ = static_cast<uint64_t>(window_size);
         }
         return;
     }
@@ -107,7 +105,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         bytes_in_flight_ -= seg.length_in_sequence_space();
         outstanding_segments_.pop();
     }
-    window_size_ = window_size;
+    window_size_ = static_cast<uint64_t>(window_size);
     last_ack_no_ = abs_ack_no;
 }
 
@@ -131,4 +129,30 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
 
 unsigned int TCPSender::consecutive_retransmissions() const { return retransmission_count_; }
 
-void TCPSender::send_empty_segment() {}
+void TCPSender::send_empty_segment() {
+    if (segments_out_.empty()) {
+        TCPSegment seg;
+        // Any outgoing segment needs to have the proper seq no.
+        seg.header().seqno = wrap(next_seq_no_, isn_);
+        segments_out_.emplace(std::move(seg));
+    }
+}
+
+TCPSender::State TCPSender::state() const {
+    if (stream_.error()) {
+        return TCPSender::State::kError;
+    }
+    if (next_seq_no_ == 0) {
+        return TCPSender::State::kClosed;
+    }
+    if (next_seq_no_ == bytes_in_flight_) {
+        return TCPSender::State::kSynSent;
+    }
+    if (!stream_.eof() || next_seq_no_ < stream_.bytes_written() + 2) {
+        return TCPSender::State::kSynAcked;
+    }
+    if (bytes_in_flight_) {
+        return TCPSender::State::kFinSent;
+    }
+    return TCPSender::State::kFinAcked;
+}

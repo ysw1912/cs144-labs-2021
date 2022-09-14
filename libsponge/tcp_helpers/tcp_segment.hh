@@ -26,6 +26,9 @@ class TCPSegment {
 
     const Buffer &payload() const { return _payload; }
     Buffer &payload() { return _payload; }
+
+    std::string str() const;
+
     //!@}
 
     //! \brief Segment's length in sequence space

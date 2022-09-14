@@ -2,11 +2,9 @@
 
 #include <cassert>
 
-UnAssembleBuffer::UnAssembleBuffer(size_t capacity) : buffer_(capacity) {}
+UnAssembleBuffer::UnAssembleBuffer(size_t capacity) : buffer_(capacity), used_(capacity) {}
 
 std::string UnAssembleBuffer::push_substring(std::string_view data, size_t index, size_t start_index) {
-    // printf("UnAssembleBuffer::push_substring: data \"%s\", index %zd, start_index %zd\n",
-    //        std::string(data).c_str(), index, start_index);
     // Caller need to ensure that ｜data｜ does not have the prefix already written to output.
     assert(index >= start_index);
     // Caller need to ensure that all the |data| can fit into the buffer.
@@ -15,21 +13,20 @@ std::string UnAssembleBuffer::push_substring(std::string_view data, size_t index
     size_t pos = (start_pos_ + index - start_index) % buffer_.capacity();
     for (size_t i = 0; i < data.size(); i++) {
         size_t curr = (pos + i) % buffer_.capacity();
-        if (!buffer_[curr].used) {
-            buffer_[curr].ch = data[i];
-            buffer_[curr].used = true;
+        if (!used_[curr]) {
+            buffer_[curr] = data[i];
+            used_[curr] = 1;
             used_size_++;
         }
     }
     // If the hole at the beginning has been filled, the beginning substring will be popped out.
     std::string popped;
-    while (buffer_[start_pos_].used) {
-        popped.push_back(buffer_[start_pos_].ch);
-        buffer_[start_pos_].used = false;
+    while (used_[start_pos_]) {
+        popped.push_back(buffer_[start_pos_]);
+        used_[start_pos_] = 0;
         used_size_--;
         start_pos_ = (start_pos_ + 1) % buffer_.capacity();
     }
-    // printf("UnAssembleBuffer::push_substring: popped \"%s\"\n", popped.c_str());
     return popped;
 }
 
@@ -44,7 +41,6 @@ StreamReassembler::StreamReassembler(const size_t capacity)
 //! possibly out-of-order, from the logical stream, and assembles any newly
 //! contiguous substrings and writes them into the output stream in order.
 void StreamReassembler::push_substring(const std::string& data, uint64_t index, const bool eof) {
-    // printf("StreamReassembler::push_substring: data \"%s\", index %lu, eof %d\n", data.c_str(), index, eof);
     std::string_view sv = data;
     size_t bytes_written = output_.bytes_written();
 
@@ -86,7 +82,7 @@ void StreamReassembler::push_substring(const std::string& data, uint64_t index, 
         }
     }
 
-    if (output_.bytes_written() == eof_index_) {
+    if (eof_index_ && output_.bytes_written() == eof_index_.value()) {
         output_.end_input();
     }
 }

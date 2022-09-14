@@ -22,6 +22,17 @@ ParseResult TCPSegment::parse(const Buffer buffer, const uint32_t datagram_layer
     return p.get_error();
 }
 
+std::string TCPSegment::str() const {
+    char buffer[128];
+    size_t payload_size = _payload.size();
+    snprintf(buffer, sizeof(buffer),
+             "Segment(S=%d, A=%d, F=%d, R=%d, seq_no=%d, ack_no=%d) size %zd: %s...",
+             _header.syn, _header.ack, _header.fin, _header.rst,
+             _header.seqno.raw_value(), _header.ackno.raw_value(), payload_size,
+             std::string(_payload.str().substr(0, std::min<size_t>(payload_size, 10))).c_str());
+    return buffer;
+}
+
 size_t TCPSegment::length_in_sequence_space() const {
     return payload().str().size() + (header().syn ? 1 : 0) + (header().fin ? 1 : 0);
 }
