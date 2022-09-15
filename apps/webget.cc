@@ -1,5 +1,4 @@
-#include "socket.hh"
-#include "util.hh"
+#include "tcp_sponge_socket.hh"
 
 #include <cstdlib>
 #include <iostream>
@@ -11,7 +10,7 @@ constexpr size_t kBufferSize = 1024;
 void get_URL(const string &host, const string &path) {
     std::cerr << "Function called: get_URL(" << host << ", " << path << ").\n";
 
-    TCPSocket tcp_sock;
+    CS144TCPSocket tcp_sock;
     Address addr(host, "http");
     tcp_sock.connect(addr);
 
@@ -25,7 +24,7 @@ void get_URL(const string &host, const string &path) {
     while (!tcp_sock.eof()) {
         resp.append(tcp_sock.read());
     }
-    tcp_sock.close();
+    tcp_sock.wait_until_closed();
 
     std::cout << resp;
 }
