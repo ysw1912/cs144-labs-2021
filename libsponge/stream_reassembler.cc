@@ -1,8 +1,9 @@
 #include "stream_reassembler.hh"
 
 #include <cassert>
+#include <cstring>
 
-UnAssembleBuffer::UnAssembleBuffer(size_t capacity) : buffer_(capacity), used_(capacity) {}
+UnAssembleBuffer::UnAssembleBuffer(size_t capacity) : buffer_(capacity) {}
 
 std::string UnAssembleBuffer::push_substring(std::string_view data, size_t index, size_t start_index) {
     // Caller need to ensure that ｜data｜ does not have the prefix already written to output.
@@ -11,23 +12,62 @@ std::string UnAssembleBuffer::push_substring(std::string_view data, size_t index
     assert(index - start_index < buffer_.capacity());
     // Push substring to buffer first.
     size_t pos = (start_pos_ + index - start_index) % buffer_.capacity();
-    for (size_t i = 0; i < data.size(); i++) {
-        size_t curr = (pos + i) % buffer_.capacity();
-        if (!used_[curr]) {
-            buffer_[curr] = data[i];
-            used_[curr] = 1;
-            used_size_++;
-        }
+    if (pos + data.size() <= buffer_.capacity()) {
+        ::memcpy(buffer_.data() + pos, data.data(), data.size());
+    } else {
+        size_t copy1 = buffer_.capacity() - pos;
+        ::memcpy(buffer_.data() + pos, data.data(), copy1);
+        ::memcpy(buffer_.data(), data.data() + copy1, data.size() - copy1);
     }
-    // If the hole at the beginning has been filled, the beginning substring will be popped out.
-    std::string popped;
-    while (used_[start_pos_]) {
-        popped.push_back(buffer_[start_pos_]);
-        used_[start_pos_] = 0;
-        used_size_--;
-        start_pos_ = (start_pos_ + 1) % buffer_.capacity();
+
+    MergeInterval(index, data.size());
+
+    if (index_map_.empty() || index_map_.begin()->first != start_index) {
+        return {};
     }
+    size_t str_size = index_map_.begin()->second;
+    used_size_ -= str_size;
+    index_map_.erase(index_map_.begin());
+
+    std::string popped(str_size, 0);
+    if (start_pos_ + str_size <= buffer_.capacity()) {
+        ::memcpy(popped.data(), buffer_.data() + start_pos_, str_size);
+    } else {
+        size_t copy1 = buffer_.capacity() - start_pos_;
+        ::memcpy(popped.data(), buffer_.data() + start_pos_, copy1);
+        ::memcpy(popped.data() + copy1, buffer_.data(), str_size - copy1);
+    }
+    start_pos_ = (start_pos_ + str_size) % buffer_.capacity();
     return popped;
+}
+
+void UnAssembleBuffer::MergeInterval(size_t index, size_t str_size) {
+    if (index_map_.empty()) {
+        index_map_[index] = str_size;
+        used_size_ += str_size;
+        return;
+    }
+    for (auto iter = index_map_.begin(); iter != index_map_.end();) {
+        // [index, ...] ... [iter->first, ...]
+        if (index + str_size < iter->first) {
+            index_map_.emplace_hint(iter, index, str_size);
+            used_size_ += str_size;
+            return;
+        }
+        // [iter->first, ...] ... [index, ...]
+        if (index > iter->first + iter->second) {
+            iter++;
+            continue;
+        }
+        // Interval overlapping.
+        size_t last = std::max(index + str_size, iter->first + iter->second);
+        index = std::min(index, iter->first);
+        str_size = last - index;
+        used_size_ -= iter->second;
+        iter = index_map_.erase(iter);
+    }
+    index_map_.emplace_hint(index_map_.end(), index, str_size);
+    used_size_ += str_size;
 }
 
 bool UnAssembleBuffer::empty() const {
