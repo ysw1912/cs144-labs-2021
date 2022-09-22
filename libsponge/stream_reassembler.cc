@@ -10,7 +10,7 @@ std::string UnAssembleBuffer::push_substring(std::string_view data, size_t index
     assert(index >= start_index);
     // Caller need to ensure that all the |data| can fit into the buffer.
     assert(index - start_index < buffer_.capacity());
-    // Push substring to buffer first.
+    // Push substring to buffer.
     size_t pos = (start_pos_ + index - start_index) % buffer_.capacity();
     if (pos + data.size() <= buffer_.capacity()) {
         ::memcpy(buffer_.data() + pos, data.data(), data.size());
@@ -19,16 +19,17 @@ std::string UnAssembleBuffer::push_substring(std::string_view data, size_t index
         ::memcpy(buffer_.data() + pos, data.data(), copy1);
         ::memcpy(buffer_.data(), data.data() + copy1, data.size() - copy1);
     }
-
+    // Maintain the substring interval.
     MergeInterval(index, data.size());
 
     if (index_map_.empty() || index_map_.begin()->first != start_index) {
         return {};
     }
+    // Remove the first interval from |index_map_|.
     size_t str_size = index_map_.begin()->second;
     used_size_ -= str_size;
     index_map_.erase(index_map_.begin());
-
+    // Pop out the beginning substring.
     std::string popped(str_size, 0);
     if (start_pos_ + str_size <= buffer_.capacity()) {
         ::memcpy(popped.data(), buffer_.data() + start_pos_, str_size);
@@ -41,31 +42,42 @@ std::string UnAssembleBuffer::push_substring(std::string_view data, size_t index
     return popped;
 }
 
+//! \brief When pushing a substring into the buffer, we record the interval
+//! corresponding to the string index into the map. We need to deal with
+//! interval merging due to the overlapping case.
 void UnAssembleBuffer::MergeInterval(size_t index, size_t str_size) {
+    // Directly insert the first interval.
     if (index_map_.empty()) {
         index_map_[index] = str_size;
         used_size_ += str_size;
         return;
     }
-    for (auto iter = index_map_.begin(); iter != index_map_.end();) {
-        // [index, ...] ... [iter->first, ...]
+    // Use lower_bound instead of traversing from beginning,
+    // to speed up finding where the interval is inserted.
+    auto iter = index_map_.lower_bound(index);
+    if (iter == index_map_.end() || (iter->first > index && iter != index_map_.begin())) {
+        iter--;
+    }
+    while (iter != index_map_.end()) {
+        // Insert before iter: [index, ...], [iter->first, ...]
         if (index + str_size < iter->first) {
             index_map_.emplace_hint(iter, index, str_size);
             used_size_ += str_size;
             return;
         }
-        // [iter->first, ...] ... [index, ...]
+        // Not overlap with iter: [iter->first, ...], [index, ...]
         if (index > iter->first + iter->second) {
             iter++;
             continue;
         }
-        // Interval overlapping.
+        // Interval overlapping. Merge them and try insertion again.
         size_t last = std::max(index + str_size, iter->first + iter->second);
         index = std::min(index, iter->first);
         str_size = last - index;
         used_size_ -= iter->second;
         iter = index_map_.erase(iter);
     }
+    // Directly insert into end.
     index_map_.emplace_hint(index_map_.end(), index, str_size);
     used_size_ += str_size;
 }

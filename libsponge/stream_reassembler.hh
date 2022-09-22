@@ -19,6 +19,9 @@ class UnAssembleBuffer {
     size_t used_size_ = 0;      //!< Used size of buffer.
     size_t start_pos_ = 0;
 
+    //! \brief When pushing a substring into the buffer, we record the interval
+    //! corresponding to the string index into the map. We need to deal with
+    //! interval merging due to the overlapping case.
     void MergeInterval(size_t index, size_t str_size);
 
   public:
